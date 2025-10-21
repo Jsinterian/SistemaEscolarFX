@@ -86,7 +86,7 @@ FOREIGN KEY (id_inscripcion) REFERENCES inscripciones(id_inscripcion)
 
 Clona este repositorio:
 
-git clone https://github.com/<tu_usuario>/SistemaEscolarFX.git
+git clone https://github.com/Jsinterian/SistemaEscolarFX.git
 cd SistemaEscolarFX
 
 
