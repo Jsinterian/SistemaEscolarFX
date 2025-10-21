@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.image.ImageView?>
+
+<BorderPane xmlns="http://javafx.com/javafx/17"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="com.escuela.app.sistemaescolarfx.controllers.MenuPrincipalController"
+            stylesheets="@../styles/style.css"
+            prefWidth="600" prefHeight="400">
+
+    <top>
+        <Label text="Sistema Escolar FX" BorderPane.alignment="CENTER"
+               style="-fx-font-size: 22px; -fx-font-weight: bold; -fx-padding: 20; -fx-background-color: #1E88E5; -fx-text-fill: white;"
+               alignment="CENTER"/>
+    </top>
+
+    <center>
+        <VBox alignment="CENTER" spacing="20" style="-fx-padding: 40;">
+            <Button text="👤 Personas" onAction="#abrirPersonas" prefWidth="200" style="-fx-font-size: 14px;"/>
+            <Button text="📘 Materias" onAction="#abrirMaterias" prefWidth="200" style="-fx-font-size: 14px;"/>
+            <Button text="🧾 Inscripciones" onAction="#abrirInscripciones" prefWidth="200" style="-fx-font-size: 14px;"/>
+            <Button text="🕐 Asistencias" onAction="#abrirAsistencias" prefWidth="200" style="-fx-font-size: 14px;"/>
+        </VBox>
+    </center>
+
+    <bottom>
+        <Label text="Desarrollado por Juan F. Hernández © 2025"
+               BorderPane.alignment="CENTER"
+               style="-fx-font-size: 11px; -fx-padding: 10; -fx-text-fill: #555;"
+               alignment="CENTER"/>
+    </bottom>
+</BorderPane>
