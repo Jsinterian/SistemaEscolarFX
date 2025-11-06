@@ -112,6 +112,19 @@ Este proyecto es de uso educativo y libre, siempre que se otorgue crédito al au
 
 ⭐ Capturas (opcional)
 
-(Puedes agregar imágenes o GIFs de las pantallas principales una vez subido el proyecto a GitHub)
+(Conexión segura SSH (JSch)
+
+El sistema implementa una conexión SSH segura mediante la librería JSch (com.jcraft:jsch:0.1.55).
+Esta capa de seguridad permite crear un túnel cifrado entre la aplicación local y el servidor remoto de base de datos, utilizando las credenciales:
+
+Host: fi.jcaguilar.dev
+Usuario SSH: patito
+Contraseña SSH: cuack
+Usuario BD: becario
+Contraseña BD: FdI-its-5a
+
+
+Durante la ejecución, el sistema establece automáticamente el túnel localhost:3307 → 127.0.0.1:3306 y realiza todas las operaciones sobre MariaDB a través de este canal protegido.
+De esta manera, se asegura la comunicación entre cliente y servidor sin exponer credenciales ni puertos del motor de base de datos.Hub)
 
 📍 Desarrollado con pasión por la tecnología, la educación y la ingeniería.

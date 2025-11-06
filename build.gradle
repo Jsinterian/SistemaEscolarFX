@@ -12,6 +12,8 @@ dependencies {
     implementation 'org.openjfx:javafx-fxml:23'
     implementation 'org.mariadb.jdbc:mariadb-java-client:3.3.3'
     implementation 'com.jcraft:jsch:0.1.55'
+    implementation 'com.jcraft:jsch:0.1.55'
+
 }
 
 javafx {

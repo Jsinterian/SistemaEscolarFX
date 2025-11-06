@@ -27,7 +27,7 @@
     </center>
 
     <bottom>
-        <Label text="Desarrollado por Juan F. Hernández © 2025"
+        <Label text="Desarrollado por Jose M Interian Chan© 2025"
                BorderPane.alignment="CENTER"
                style="-fx-font-size: 11px; -fx-padding: 10; -fx-text-fill: #555;"
                alignment="CENTER"/>

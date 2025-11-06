@@ -46,7 +46,6 @@ public class AsistenciaController {
                 JOIN persona_escuela p ON i.id_persona = p.id_persona
                 JOIN materias m ON i.id_materia = m.id_materia
                 """;
-
         try (Connection conn = ConexionBD.getConexion();
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {

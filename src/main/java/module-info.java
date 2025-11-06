@@ -1,7 +1,8 @@
 module com.escuela.app.sistemaescolarfx {
     requires javafx.controls;
     requires javafx.fxml;
-    requires java.sql; // 👈 ESTA LÍNEA ES LA CLAVE
+    requires java.sql;
+    requires jsch; // 👈 ESTA LÍNEA ES LA CLAVE
 
     opens com.escuela.app.sistemaescolarfx to javafx.fxml;
     exports com.escuela.app.sistemaescolarfx;

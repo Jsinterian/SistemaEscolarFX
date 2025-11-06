@@ -11,7 +11,11 @@ import javafx.scene.control.*;
 import java.sql.*;
 import java.time.LocalDate;
 
+
 public class PersonaController {
+    Connection conn = ConexionBD.getConexion();
+
+
 
     @FXML private TextField txtNombre, txtApellido;
     @FXML private ChoiceBox<String> cbSexo, cbRol;
