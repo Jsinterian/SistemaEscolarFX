@@ -19,15 +19,15 @@ import java.util.Map;
 public class AsistenciaController {
 
     @FXML private ChoiceBox<String> cbInscripcion;
-    @FXML private DatePicker dpFecha;
+    @FXML private DatePicker dpFecha; // (opcional en DB; no se usa en INSERT por compatibilidad)
     @FXML private TableView<Asistencia> tablaAsistencias;
     @FXML private TableColumn<Asistencia, String> colAlumno;
     @FXML private TableColumn<Asistencia, String> colMateria;
     @FXML private TableColumn<Asistencia, LocalDate> colFecha;
     @FXML private TableColumn<Asistencia, Boolean> colPresente;
 
-    private ObservableList<Asistencia> listaAsistencias = FXCollections.observableArrayList();
-    private Map<String, Integer> mapInscripciones = new HashMap<>();
+    private final ObservableList<Asistencia> listaAsistencias = FXCollections.observableArrayList();
+    private final Map<String, Integer> mapInscripciones = new HashMap<>();
 
     @FXML
     public void initialize() {
@@ -36,15 +36,18 @@ public class AsistenciaController {
         mostrarAsistencias();
     }
 
+    /** Construye "Alumno - Materia" desde inscripciones/personas_escuela/materias */
     private void cargarInscripciones() {
         cbInscripcion.getItems().clear();
         mapInscripciones.clear();
 
         String sql = """
-                SELECT i.id_inscripcion, CONCAT(p.nombre, ' ', p.apellido, ' - ', m.nombre_materia) AS descripcion
+                SELECT i.id_inscripcion,
+                       CONCAT(p.nombre, ' ', p.apellido, ' - ', m.descripcion) AS descripcion
                 FROM inscripciones i
-                JOIN persona_escuela p ON i.id_persona = p.id_persona
-                JOIN materias m ON i.id_materia = m.id_materia
+                JOIN personas_escuela p ON i.persona_id = p.id_persona
+                JOIN materias         m ON i.materia_id = m.id_materia
+                ORDER BY p.apellido, p.nombre, m.descripcion
                 """;
         try (Connection conn = ConexionBD.getConexion();
              Statement stmt = conn.createStatement();
@@ -58,39 +61,39 @@ public class AsistenciaController {
 
         } catch (SQLException e) {
             e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Error al cargar inscripciones: " + e.getMessage()).showAndWait();
         }
     }
 
     private void configurarTabla() {
-        colAlumno.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getAlumno()));
-        colMateria.setCellValueFactory(data -> new SimpleStringProperty(data.getValue().getMateria()));
-        colFecha.setCellValueFactory(data -> new SimpleObjectProperty<>(data.getValue().getFechaAsistencia()));
-        colPresente.setCellValueFactory(data -> {
-            SimpleBooleanProperty prop = new SimpleBooleanProperty(data.getValue().isPresente());
-            prop.addListener((obs, oldVal, newVal) -> actualizarAsistencia(data.getValue(), newVal));
+        colAlumno.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getAlumno()));
+        colMateria.setCellValueFactory(d -> new SimpleStringProperty(d.getValue().getMateria()));
+        colFecha.setCellValueFactory(d -> new SimpleObjectProperty<>(d.getValue().getFechaAsistencia()));
+        colPresente.setCellValueFactory(d -> {
+            SimpleBooleanProperty prop = new SimpleBooleanProperty(d.getValue().isPresente());
+            prop.addListener((obs, oldVal, newVal) -> actualizarAsistencia(d.getValue(), newVal));
             return prop;
         });
-
         colPresente.setCellFactory(CheckBoxTableCell.forTableColumn(colPresente));
     }
 
     @FXML
     public void registrarAsistencia() {
-        if (cbInscripcion.getValue() == null || dpFecha.getValue() == null) {
-            new Alert(Alert.AlertType.WARNING, "Seleccione inscripción y fecha.").showAndWait();
+        if (cbInscripcion.getValue() == null) {
+            new Alert(Alert.AlertType.WARNING, "Seleccione una inscripción.").showAndWait();
             return;
         }
 
-        String sql = "INSERT INTO asistencias (id_inscripcion, fecha_asistencia, presente) VALUES (?, ?, false)";
+        // Inserción mínima segura (evita columna fecha inexistente)
+        String sql = "INSERT INTO asistencias (id_inscripcion, presente) VALUES (?, false)";
 
         try (Connection conn = ConexionBD.getConexion();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setInt(1, mapInscripciones.get(cbInscripcion.getValue()));
-            stmt.setDate(2, Date.valueOf(dpFecha.getValue()));
             stmt.executeUpdate();
 
-            new Alert(Alert.AlertType.INFORMATION, "Asistencia registrada correctamente.").showAndWait();
+            new Alert(Alert.AlertType.INFORMATION, "Asistencia registrada.").showAndWait();
             mostrarAsistencias();
 
         } catch (SQLException e) {
@@ -104,14 +107,17 @@ public class AsistenciaController {
         listaAsistencias.clear();
 
         String sql = """
-                SELECT a.id_asistencia, a.id_inscripcion, a.fecha_asistencia, a.presente,
+                SELECT a.id_asistencia,
+                       a.id_inscripcion,
                        CONCAT(p.nombre, ' ', p.apellido) AS alumno,
-                       m.nombre_materia AS materia
+                       m.descripcion                    AS materia,
+                       COALESCE(a.fecha_asistencia, a.fecha, DATE(a.created_at)) AS fecha_mostrar,
+                       a.presente
                 FROM asistencias a
-                JOIN inscripciones i ON a.id_inscripcion = i.id_inscripcion
-                JOIN persona_escuela p ON i.id_persona = p.id_persona
-                JOIN materias m ON i.id_materia = m.id_materia
-                ORDER BY a.fecha_asistencia DESC
+                JOIN inscripciones     i ON a.id_inscripcion = i.id_inscripcion
+                JOIN personas_escuela  p ON i.persona_id     = p.id_persona
+                JOIN materias          m ON i.materia_id     = m.id_materia
+                ORDER BY fecha_mostrar DESC, alumno
                 """;
 
         try (Connection conn = ConexionBD.getConexion();
@@ -119,12 +125,13 @@ public class AsistenciaController {
              ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
+                Date f = rs.getDate("fecha_mostrar"); // puede venir de created_at (DATE)
                 listaAsistencias.add(new Asistencia(
                         rs.getInt("id_asistencia"),
                         rs.getInt("id_inscripcion"),
                         rs.getString("alumno"),
                         rs.getString("materia"),
-                        rs.getDate("fecha_asistencia").toLocalDate(),
+                        f != null ? f.toLocalDate() : null,
                         rs.getBoolean("presente")
                 ));
             }
@@ -133,6 +140,7 @@ public class AsistenciaController {
 
         } catch (SQLException e) {
             e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Error al mostrar asistencias: " + e.getMessage()).showAndWait();
         }
     }
 
@@ -150,6 +158,7 @@ public class AsistenciaController {
 
         } catch (SQLException e) {
             e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Error al actualizar asistencia: " + e.getMessage()).showAndWait();
         }
     }
 }

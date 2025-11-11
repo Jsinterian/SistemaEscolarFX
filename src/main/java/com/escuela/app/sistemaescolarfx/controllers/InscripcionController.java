@@ -23,25 +23,25 @@ public class InscripcionController {
     @FXML private TableColumn<Inscripcion, String> colMateria;
     @FXML private TableColumn<Inscripcion, LocalDate> colFecha;
 
-    private ObservableList<Inscripcion> listaInscripciones = FXCollections.observableArrayList();
+    private final ObservableList<Inscripcion> listaInscripciones = FXCollections.observableArrayList();
 
-    // 🔹 Mapas para relacionar nombre → ID real
-    private Map<String, Integer> mapPersonas = new HashMap<>();
-    private Map<String, Integer> mapMaterias = new HashMap<>();
+    // Mapa: etiqueta visible -> ID real
+    private final Map<String, Integer> mapPersonas = new HashMap<>();
+    private final Map<String, Integer> mapMaterias = new HashMap<>();
 
     @FXML
     public void initialize() {
         cargarPersonas();
         cargarMaterias();
 
-        colId.setCellValueFactory(data -> new javafx.beans.property.SimpleIntegerProperty(data.getValue().getIdInscripcion()).asObject());
-        colAlumno.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getNombrePersona()));
-        colMateria.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getNombreMateria()));
-        colFecha.setCellValueFactory(data -> new javafx.beans.property.SimpleObjectProperty<>(data.getValue().getFechaInscripcion()));
+        colId.setCellValueFactory(d -> new javafx.beans.property.SimpleIntegerProperty(d.getValue().getIdInscripcion()).asObject());
+        colAlumno.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getNombrePersona()));
+        colMateria.setCellValueFactory(d -> new javafx.beans.property.SimpleStringProperty(d.getValue().getNombreMateria()));
+        colFecha.setCellValueFactory(d -> new javafx.beans.property.SimpleObjectProperty<>(d.getValue().getFechaInscripcion()));
 
         mostrarInscripciones();
 
-        // Autocompletar campos al seleccionar
+        // Autocompletar al seleccionar una fila
         tablaInscripciones.getSelectionModel().selectedItemProperty().addListener((obs, oldSel, newSel) -> {
             if (newSel != null) {
                 cbPersona.setValue(newSel.getNombrePersona());
@@ -51,87 +51,110 @@ public class InscripcionController {
         });
     }
 
+    /** Carga alumnos desde personas_escuela (id_rol = 1) */
     private void cargarPersonas() {
         cbPersona.getItems().clear();
         mapPersonas.clear();
+
+        String sql = """
+                SELECT id_persona, nombre, apellido
+                FROM personas_escuela
+                WHERE id_rol = 1
+                ORDER BY apellido, nombre
+                """;
         try (Connection conn = ConexionBD.getConexion();
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT id_persona, nombre, apellido FROM persona_escuela WHERE rol='Alumno'")) {
+             ResultSet rs = stmt.executeQuery(sql)) {
+
             while (rs.next()) {
                 String nombreCompleto = rs.getString("nombre") + " " + rs.getString("apellido");
                 cbPersona.getItems().add(nombreCompleto);
-                mapPersonas.put(nombreCompleto, rs.getInt("id_persona")); // 🔹 Mapeo
+                mapPersonas.put(nombreCompleto, rs.getInt("id_persona"));
             }
         } catch (SQLException e) {
             e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Error al cargar personas: " + e.getMessage()).showAndWait();
         }
     }
 
+    /** Carga materias: usar 'descripcion' como nombre visible */
     private void cargarMaterias() {
         cbMateria.getItems().clear();
         mapMaterias.clear();
+
+        String sql = """
+                SELECT id_materia, descripcion
+                FROM materias
+                ORDER BY descripcion
+                """;
         try (Connection conn = ConexionBD.getConexion();
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT id_materia, nombre_materia FROM materias")) {
+             ResultSet rs = stmt.executeQuery(sql)) {
+
             while (rs.next()) {
-                cbMateria.getItems().add(rs.getString("nombre_materia"));
-                mapMaterias.put(rs.getString("nombre_materia"), rs.getInt("id_materia")); // 🔹 Mapeo
+                String nombreMateria = rs.getString("descripcion");
+                cbMateria.getItems().add(nombreMateria);
+                mapMaterias.put(nombreMateria, rs.getInt("id_materia"));
             }
         } catch (SQLException e) {
             e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Error al cargar materias: " + e.getMessage()).showAndWait();
         }
     }
 
     @FXML
     public void insertarInscripcion() {
-        if (cbPersona.getValue() == null || cbMateria.getValue() == null || dpFecha.getValue() == null) {
-            new Alert(Alert.AlertType.WARNING, "Debe completar todos los campos.").showAndWait();
+        if (cbPersona.getValue() == null || cbMateria.getValue() == null) {
+            new Alert(Alert.AlertType.WARNING, "Seleccione alumno y materia.").showAndWait();
             return;
         }
 
-        String sql = "INSERT INTO inscripciones (id_persona, id_materia, fecha_inscripcion) VALUES (?, ?, ?)";
+        // Inserción mínima segura (evita campo fecha no existente)
+        String sql = "INSERT INTO inscripciones (persona_id, materia_id) VALUES (?, ?)";
 
         try (Connection conn = ConexionBD.getConexion();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setInt(1, mapPersonas.get(cbPersona.getValue()));
             stmt.setInt(2, mapMaterias.get(cbMateria.getValue()));
-            stmt.setDate(3, Date.valueOf(dpFecha.getValue()));
-
             stmt.executeUpdate();
+
             new Alert(Alert.AlertType.INFORMATION, "Inscripción registrada correctamente.").showAndWait();
             mostrarInscripciones();
 
         } catch (SQLException e) {
-            new Alert(Alert.AlertType.ERROR, "Error al inscribir: " + e.getMessage()).showAndWait();
             e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Error al inscribir: " + e.getMessage()).showAndWait();
         }
     }
 
     @FXML
     public void editarInscripcion() {
-        Inscripcion seleccionada = tablaInscripciones.getSelectionModel().getSelectedItem();
-        if (seleccionada == null) {
+        Inscripcion sel = tablaInscripciones.getSelectionModel().getSelectedItem();
+        if (sel == null) {
             new Alert(Alert.AlertType.WARNING, "Seleccione una inscripción para editar.").showAndWait();
             return;
         }
+        if (cbPersona.getValue() == null || cbMateria.getValue() == null) {
+            new Alert(Alert.AlertType.WARNING, "Seleccione alumno y materia.").showAndWait();
+            return;
+        }
 
-        String sql = "UPDATE inscripciones SET id_persona=?, id_materia=?, fecha_inscripcion=? WHERE id_inscripcion=?";
+        String sql = "UPDATE inscripciones SET persona_id = ?, materia_id = ? WHERE id_inscripcion = ?";
 
         try (Connection conn = ConexionBD.getConexion();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setInt(1, mapPersonas.get(cbPersona.getValue()));
             stmt.setInt(2, mapMaterias.get(cbMateria.getValue()));
-            stmt.setDate(3, Date.valueOf(dpFecha.getValue()));
-            stmt.setInt(4, seleccionada.getIdInscripcion());
+            stmt.setInt(3, sel.getIdInscripcion());
 
             int filas = stmt.executeUpdate();
-            if (filas > 0)
-                new Alert(Alert.AlertType.INFORMATION, "Inscripción actualizada correctamente.").showAndWait();
-            else
+            if (filas > 0) {
+                new Alert(Alert.AlertType.INFORMATION, "Inscripción actualizada.").showAndWait();
+            } else {
                 new Alert(Alert.AlertType.WARNING, "No se encontró la inscripción.").showAndWait();
-
+            }
             mostrarInscripciones();
 
         } catch (SQLException e) {
@@ -142,30 +165,29 @@ public class InscripcionController {
 
     @FXML
     public void eliminarInscripcion() {
-        Inscripcion seleccionada = tablaInscripciones.getSelectionModel().getSelectedItem();
-        if (seleccionada == null) {
+        Inscripcion sel = tablaInscripciones.getSelectionModel().getSelectedItem();
+        if (sel == null) {
             new Alert(Alert.AlertType.WARNING, "Seleccione una inscripción para eliminar.").showAndWait();
             return;
         }
 
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
-                "¿Desea eliminar la inscripción de " + seleccionada.getNombrePersona() +
-                        " en " + seleccionada.getNombreMateria() + "?",
+                "¿Eliminar la inscripción de " + sel.getNombrePersona() + " en " + sel.getNombreMateria() + "?",
                 ButtonType.YES, ButtonType.NO);
         confirm.showAndWait();
 
         if (confirm.getResult() == ButtonType.YES) {
-            String sql = "DELETE FROM inscripciones WHERE id_inscripcion=?";
+            String sql = "DELETE FROM inscripciones WHERE id_inscripcion = ?";
             try (Connection conn = ConexionBD.getConexion();
                  PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-                stmt.setInt(1, seleccionada.getIdInscripcion());
+                stmt.setInt(1, sel.getIdInscripcion());
                 int filas = stmt.executeUpdate();
 
                 if (filas > 0)
-                    new Alert(Alert.AlertType.INFORMATION, "Inscripción eliminada correctamente.").showAndWait();
+                    new Alert(Alert.AlertType.INFORMATION, "Inscripción eliminada.").showAndWait();
                 else
-                    new Alert(Alert.AlertType.WARNING, "No se encontró la inscripción para eliminar.").showAndWait();
+                    new Alert(Alert.AlertType.WARNING, "No se encontró la inscripción.").showAndWait();
 
                 mostrarInscripciones();
 
@@ -179,13 +201,18 @@ public class InscripcionController {
     @FXML
     public void mostrarInscripciones() {
         listaInscripciones.clear();
+
         String sql = """
-                SELECT i.id_inscripcion, p.id_persona, m.id_materia,
-                       CONCAT(p.nombre, ' ', p.apellido) AS nombre_persona,
-                       m.nombre_materia, i.fecha_inscripcion
+                SELECT i.id_inscripcion,
+                       p.id_persona,
+                       m.id_materia,
+                       CONCAT(p.nombre, ' ', p.apellido)         AS nombre_persona,
+                       m.descripcion                              AS nombre_materia,
+                       COALESCE(i.fecha_inscripcion, i.fecha, DATE(i.created_at)) AS fecha_inscripcion
                 FROM inscripciones i
-                JOIN persona_escuela p ON i.id_persona = p.id_persona
-                JOIN materias m ON i.id_materia = m.id_materia
+                JOIN personas_escuela p ON i.persona_id = p.id_persona
+                JOIN materias         m ON i.materia_id = m.id_materia
+                ORDER BY i.id_inscripcion DESC
                 """;
 
         try (Connection conn = ConexionBD.getConexion();
@@ -193,13 +220,17 @@ public class InscripcionController {
              ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
+                LocalDate f = rs.getDate("fecha_inscripcion") != null
+                        ? rs.getDate("fecha_inscripcion").toLocalDate()
+                        : null;
+
                 listaInscripciones.add(new Inscripcion(
                         rs.getInt("id_inscripcion"),
                         rs.getInt("id_persona"),
                         rs.getInt("id_materia"),
                         rs.getString("nombre_persona"),
                         rs.getString("nombre_materia"),
-                        rs.getDate("fecha_inscripcion").toLocalDate()
+                        f
                 ));
             }
 
@@ -207,9 +238,10 @@ public class InscripcionController {
 
         } catch (SQLException e) {
             e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Error al mostrar inscripciones: " + e.getMessage()).showAndWait();
         }
 
-        // Limpiar campos visuales
+        // Limpiar UI
         cbPersona.setValue(null);
         cbMateria.setValue(null);
         dpFecha.setValue(null);
